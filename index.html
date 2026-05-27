@@ -274,24 +274,171 @@ body{font-family:'DM Sans',sans-serif;background:var(--offwhite);color:var(--tex
   .side-video-card{height:100%}
 }
 
-/* RESPONSIVE */
+/* ============================================
+   MOBILE OPTIMIZATIONS
+   ============================================ */
+
+/* Touch targets minimos 44px */
+button,a,.filter-btn,.size-btn,.color-big,.nav-cart,.nav-user,.nav-logout,.acc-nav-btn{
+  min-height:44px;
+}
+.size-btn{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;}
+.acc-nav-btn{min-height:28px !important;} /* excecao: nav discreta */
+
+/* HAMBURGER */
+.nav-hamburger{
+  display:none;flex-direction:column;justify-content:center;align-items:center;
+  gap:5px;width:44px;height:44px;background:none;border:none;
+  cursor:pointer;padding:8px;border-radius:12px;transition:background .2s;
+}
+.nav-hamburger:hover{background:rgba(255,255,255,0.08)}
+.nav-hamburger span{
+  display:block;width:22px;height:2px;background:rgba(255,255,255,0.75);
+  border-radius:2px;transition:all .3s cubic-bezier(0.4,0,0.2,1);
+}
+.nav-hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.nav-hamburger.open span:nth-child(2){opacity:0;transform:scaleX(0)}
+.nav-hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+
+/* MENU LATERAL MOBILE */
+.mobile-menu-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;
+  backdrop-filter:blur(2px);
+}
+.mobile-menu-overlay.open{display:block;animation:fadeIn .2s ease}
+.mobile-menu{
+  position:fixed;top:0;left:0;bottom:0;width:min(280px,85vw);
+  background:var(--vinho-dark);z-index:501;
+  display:flex;flex-direction:column;
+  transform:translateX(-100%);transition:transform .3s cubic-bezier(0.4,0,0.2,1);
+  box-shadow:4px 0 24px rgba(0,0,0,0.4);
+}
+.mobile-menu.open{transform:translateX(0)}
+.mobile-menu-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1.2rem 1.5rem;border-bottom:1px solid rgba(255,255,255,0.08);
+}
+.mobile-menu-head img{height:38px;width:auto}
+.mobile-menu-close{
+  width:36px;height:36px;background:rgba(255,255,255,0.1);border:none;
+  border-radius:50%;color:#fff;font-size:1.1rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.mobile-menu-links{
+  flex:1;overflow-y:auto;padding:1rem 0;
+}
+.mobile-menu-link{
+  display:flex;align-items:center;padding:1rem 1.5rem;
+  font-size:0.82rem;letter-spacing:2px;text-transform:uppercase;
+  color:rgba(255,255,255,0.65);cursor:pointer;
+  transition:all .2s;border-left:3px solid transparent;
+  min-height:52px;
+}
+.mobile-menu-link:hover,.mobile-menu-link.active{
+  color:#fff;background:rgba(255,255,255,0.07);
+  border-left-color:var(--gold);
+}
+.mobile-menu-footer{
+  padding:1.2rem 1.5rem;border-top:1px solid rgba(255,255,255,0.08);
+  display:flex;flex-direction:column;gap:8px;
+}
+
+/* CHECKOUT FIXO NO RODAPE (mobile) */
+.sticky-checkout{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;z-index:350;
+  background:#fff;border-top:1px solid var(--border);
+  padding:10px 16px 16px;
+  box-shadow:0 -4px 20px rgba(107,20,40,0.12);
+  align-items:center;gap:12px;
+  padding-bottom:max(16px, env(safe-area-inset-bottom));
+}
+.sticky-checkout.visible{display:flex;animation:slideUp .3s ease}
+.sticky-checkout-info{
+  flex:1;min-width:0;
+}
+.sticky-checkout-label{font-size:0.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--text-light)}
+.sticky-checkout-total{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--vinho);font-weight:500}
+.sticky-checkout-count{font-size:0.72rem;color:var(--text-muted)}
+.sticky-checkout-btn{
+  background:var(--whatsapp);color:#fff;border:none;border-radius:30px;
+  padding:13px 20px;font-size:0.82rem;letter-spacing:1px;text-transform:uppercase;
+  cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;
+  display:flex;align-items:center;gap:6px;min-height:48px;
+  transition:background .2s;font-weight:500;
+}
+.sticky-checkout-btn:hover{background:#1da851}
+
+/* TABLET */
 @media(max-width:768px){
-  .nav-links{gap:.8rem;font-size:10px}
+  .nav-hamburger{display:flex}
+  .nav-links{display:none !important}
   .footer-grid{grid-template-columns:1fr;gap:1.8rem;text-align:center}
   .footer-social{justify-content:center}
   .stats-row{grid-template-columns:1fr 1fr}
   .form-row{grid-template-columns:1fr}
-  .product-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem}
-  .product-img{height:250px}
+  .product-grid{grid-template-columns:repeat(2,1fr);gap:.75rem}
+  .product-img{height:200px}
+  .product-info{padding:.7rem}
+  .product-name{font-size:0.82rem}
+  .product-price{font-size:1rem}
+  .product-btns{gap:4px}
+  .btn-comprar,.btn-cart{font-size:0.65rem;padding:10px 6px}
   .res-item{flex-direction:column;gap:8px;align-items:flex-start}
   .cart-item{flex-wrap:wrap}
+  /* Acessibilidade nav esconde no mobile - fica no menu */
+  .acc-nav-group{display:none}
 }
+
+/* MOBILE */
 @media(max-width:480px){
-  .nav-links{display:none}
   .stats-row{grid-template-columns:1fr}
-  .modal{max-width:100%;margin:0 .5rem}
-  .product-grid{grid-template-columns:1fr;gap:1.5rem}
-  .product-img{height:340px}
+  /* Modal produto: tela cheia deslizando de baixo */
+  .modal-wrap#pmodal{align-items:flex-end;padding:0}
+  .modal-wrap#pmodal .modal{
+    max-width:100%;width:100%;border-radius:24px 24px 0 0;
+    max-height:93vh;margin:0;
+    animation:slideUpModal .35s cubic-bezier(0.4,0,0.2,1);
+  }
+  /* Carrinho: drawer que sobe de baixo */
+  .modal-wrap#cartModal{align-items:flex-end;padding:0}
+  .modal-wrap#cartModal .modal{
+    max-width:100%;width:100%;border-radius:24px 24px 0 0;
+    max-height:90vh;margin:0;
+    animation:slideUpModal .35s cubic-bezier(0.4,0,0.2,1);
+  }
+  /* Login: tela cheia de baixo */
+  .modal-wrap#loginModal{align-items:flex-end;padding:0}
+  .modal-wrap#loginModal .modal{
+    max-width:100%;width:100%;border-radius:24px 24px 0 0;
+    margin:0;
+    animation:slideUpModal .35s cubic-bezier(0.4,0,0.2,1);
+  }
+  /* WA maior no mobile */
+  .wa-float{width:62px;height:62px;bottom:80px}
+  /* Esconde WA quando sticky checkout visivel */
+  body.cart-has-items .wa-float{bottom:90px}
+  /* Grid 2 colunas */
+  .product-grid{grid-template-columns:repeat(2,1fr);gap:.6rem}
+  .product-img{height:180px}
+  .product-info{padding:.6rem}
+  .product-name{font-size:0.78rem}
+  .product-price{font-size:0.95rem}
+  .product-btns{flex-direction:column;gap:4px}
+  .btn-comprar,.btn-cart{min-height:40px;font-size:0.65rem;padding:10px 6px}
+  /* Nav ajustes */
+  .nav{padding:0 1rem}
+  .nav-user{display:none} /* esconde no mobile, usa menu lateral */
+  .collection-container{padding:.75rem}
+  /* Footer mais compacto */
+  .site-footer{padding:2rem 1.2rem 6rem}
+  /* Body padding pro sticky checkout */
+  body.cart-has-items #vitrine{padding-bottom:80px}
+}
+
+@keyframes slideUpModal{
+  from{opacity:0;transform:translateY(60px)}
+  to{opacity:1;transform:translateY(0)}
 }
 #vitrine {
   opacity: 1;
@@ -321,6 +468,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--offwhite);color:var(--tex
 <body>
 
 <nav class="nav">
+  <button class="nav-hamburger" id="nav-hamburger" onclick="toggleMobileMenu()" aria-label="Menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
   <div class="logo-nav" style="cursor:pointer" onclick="voltarVitrine()"><img src="logo.png" alt="Sem Censura"></div>
   <div class="nav-links">
     <span class="active" onclick="showVitrine('novidade',this)">Novidades</span>
@@ -334,13 +484,40 @@ body{font-family:'DM Sans',sans-serif;background:var(--offwhite);color:var(--tex
       <button class="acc-nav-btn" id="acc-menor" onclick="ajustarFonte(-1)" title="Diminuir texto" aria-label="Diminuir texto">A−</button>
       <button class="acc-nav-btn" id="acc-maior" onclick="ajustarFonte(1)" title="Aumentar texto" aria-label="Aumentar texto">A+</button>
       <button class="acc-nav-btn" id="acc-contraste" onclick="toggleContraste()" title="Alto contraste" aria-label="Alto contraste" style="font-size:0.85rem">◑</button>
-      <button class="acc-nav-btn" id="acc-reset" onclick="resetAcessibilidade()" title="Redefinir acessibilidade" aria-label="Redefinir" style="font-size:0.8rem">↺</button>
+      <button class="acc-nav-btn" id="acc-reset" onclick="resetAcessibilidade()" title="Redefinir" aria-label="Redefinir" style="font-size:0.8rem">↺</button>
     </div>
     <button class="nav-cart" id="nav-cart-btn" onclick="openCart()">🛒 <span class="cart-badge" id="cart-badge"></span></button>
     <button class="nav-user" id="nav-acct-btn" onclick="openLoginModal()">👤 Entrar</button>
     <button class="nav-logout" id="nav-logout-btn" onclick="logout()">Sair</button>
   </div>
 </nav>
+
+<!-- MENU LATERAL MOBILE -->
+<div class="mobile-menu-overlay" id="mobile-overlay" onclick="closeMobileMenu()"></div>
+<div class="mobile-menu" id="mobile-menu" role="navigation" aria-label="Menu principal">
+  <div class="mobile-menu-head">
+    <img src="logo.png" alt="Sem Censura">
+    <button class="mobile-menu-close" onclick="closeMobileMenu()" aria-label="Fechar menu">×</button>
+  </div>
+  <div class="mobile-menu-links">
+    <div class="mobile-menu-link active" onclick="mobileNav('novidade',this)">🌟 Novidades</div>
+    <div class="mobile-menu-link" onclick="mobileNav('lingerie',this)">👙 Lingerie</div>
+    <div class="mobile-menu-link" onclick="mobileNav('praia',this)">🌊 Moda Praia</div>
+    <div class="mobile-menu-link" onclick="mobileNav('fitness',this)">💪 Fitness</div>
+    <div class="mobile-menu-link" onclick="mobileNav('sexshop',this)">🔥 Sex Shop</div>
+    <div class="mobile-menu-link" onclick="mobileNav('todos',this)">✨ Ver tudo</div>
+  </div>
+  <div class="mobile-menu-footer">
+    <div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:4px">Acessibilidade</div>
+    <div style="display:flex;gap:6px">
+      <button onclick="ajustarFonte(-1)" style="flex:1;background:rgba(255,255,255,0.08);border:none;color:#fff;border-radius:12px;padding:10px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">A−</button>
+      <button onclick="ajustarFonte(1)" style="flex:1;background:rgba(255,255,255,0.08);border:none;color:#fff;border-radius:12px;padding:10px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">A+</button>
+      <button onclick="toggleContraste()" style="flex:1;background:rgba(255,255,255,0.08);border:none;color:#fff;border-radius:12px;padding:10px;font-size:0.9rem;cursor:pointer;font-family:'DM Sans',sans-serif">◑</button>
+      <button onclick="resetAcessibilidade()" style="flex:1;background:rgba(255,255,255,0.08);border:none;color:#fff;border-radius:12px;padding:10px;font-size:0.9rem;cursor:pointer;font-family:'DM Sans',sans-serif">↺</button>
+    </div>
+    <button onclick="openLoginModal();closeMobileMenu()" style="width:100%;background:var(--gold);color:var(--vinho-dark);border:none;border-radius:30px;padding:13px;font-size:0.78rem;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;margin-top:6px">👤 Minha conta</button>
+  </div>
+</div>
 
 
 <div id="vitrine">
@@ -454,6 +631,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--offwhite);color:var(--tex
 
 <!-- WHATSAPP FLUTUANTE -->
 <a class="wa-float wa-float-pulse" href="https://wa.me/5588999138091" target="_blank" rel="noopener" title="Fale conosco no WhatsApp"><img src="whatsapp.png" alt="WhatsApp" style="width:100%;height:100%;object-fit:cover;display:block"></a>
+
+<!-- CHECKOUT FIXO MOBILE -->
+<div class="sticky-checkout" id="sticky-checkout">
+  <div class="sticky-checkout-info">
+    <div class="sticky-checkout-label">Seu carrinho</div>
+    <div class="sticky-checkout-total" id="sticky-total">R$ 0,00</div>
+    <div class="sticky-checkout-count" id="sticky-count">0 peças</div>
+  </div>
+  <button class="sticky-checkout-btn" onclick="openCart()">💬 Ver carrinho</button>
+</div>
 
 <script>
 // ============================================================
@@ -1795,6 +1982,90 @@ if (altoContraste) {
   document.body.classList.add('alto-contraste');
   document.getElementById('acc-contraste').classList.add('active');
 }
+
+// ============================================================
+// MENU MOBILE (HAMBURGER)
+// ============================================================
+function toggleMobileMenu() {
+  const menu    = document.getElementById('mobile-menu');
+  const overlay = document.getElementById('mobile-overlay');
+  const btn     = document.getElementById('nav-hamburger');
+  const isOpen  = menu.classList.contains('open');
+  if (isOpen) {
+    closeMobileMenu();
+  } else {
+    menu.classList.add('open');
+    overlay.classList.add('open');
+    btn.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closeMobileMenu() {
+  document.getElementById('mobile-menu').classList.remove('open');
+  document.getElementById('mobile-overlay').classList.remove('open');
+  const btn = document.getElementById('nav-hamburger');
+  if (btn) { btn.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
+  document.body.style.overflow = '';
+}
+
+function mobileNav(categoria, el) {
+  // Atualiza ativo no menu lateral
+  document.querySelectorAll('.mobile-menu-link').forEach(l => l.classList.remove('active'));
+  el.classList.add('active');
+  // Navega
+  const desktopSpan = document.querySelector(`.nav-links span[onclick*="${categoria}"]`);
+  showVitrine(categoria, desktopSpan || null);
+  closeMobileMenu();
+}
+
+// Fechar menu com tecla Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeMobileMenu();
+    closeCartDirect();
+    closeMDirect();
+    closeLoginDirect();
+  }
+});
+
+// ============================================================
+// STICKY CHECKOUT (MOBILE)
+// ============================================================
+function updateStickyCheckout() {
+  const bar   = document.getElementById('sticky-checkout');
+  const total = document.getElementById('sticky-total');
+  const count = document.getElementById('sticky-count');
+  if (!bar) return;
+
+  const totalItens = carrinho.reduce((a, i) => a + i.quantidade, 0);
+
+  if (totalItens > 0) {
+    // Calcula valor total
+    const totalValor = carrinho.reduce((sum, item) => {
+      const num = parseFloat((item.preco || 'R$ 0').replace(/[^\d,]/g,'').replace(',','.')) || 0;
+      return sum + num * item.quantidade;
+    }, 0);
+    total.textContent = 'R$ ' + totalValor.toFixed(2).replace('.', ',');
+    count.textContent = totalItens + (totalItens === 1 ? ' peça' : ' peças');
+    bar.classList.add('visible');
+    document.body.classList.add('cart-has-items');
+  } else {
+    bar.classList.remove('visible');
+    document.body.classList.remove('cart-has-items');
+  }
+}
+
+// Intercepta updateCartBadge para também atualizar sticky checkout
+const _origUpdateCartBadge = updateCartBadge;
+updateCartBadge = function() {
+  _origUpdateCartBadge();
+  updateStickyCheckout();
+};
+
+// Inicializa sticky ao carregar
+updateStickyCheckout();
 </script>
 </body>
 </html>

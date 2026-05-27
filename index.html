@@ -446,6 +446,57 @@ button,a,.filter-btn,.size-btn,.color-big,.nav-cart,.nav-user,.nav-logout,.acc-n
   transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* FRETE */
+.frete-box{
+  background:var(--creme);border:1px solid var(--border);
+  border-radius:14px;padding:14px;margin-bottom:12px;
+}
+.frete-box-title{
+  font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;
+  color:var(--text-light);margin-bottom:10px;display:flex;align-items:center;gap:6px;
+}
+.frete-cep-row{display:flex;gap:8px;margin-bottom:0}
+.frete-cep-input{
+  flex:1;padding:10px 14px;border:1px solid var(--border-strong);
+  border-radius:30px;font-size:0.9rem;font-family:'DM Sans',sans-serif;
+  background:#fff;color:var(--text);outline:none;transition:border-color .2s;
+  min-width:0;
+}
+.frete-cep-input:focus{border-color:var(--vinho-light)}
+.frete-calc-btn{
+  background:var(--vinho);color:#fff;border:none;border-radius:30px;
+  padding:10px 18px;font-size:0.78rem;letter-spacing:1px;text-transform:uppercase;
+  cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;
+  transition:background .2s;min-height:44px;
+}
+.frete-calc-btn:hover{background:var(--vinho-dark)}
+.frete-calc-btn:disabled{opacity:.5;cursor:default}
+.frete-addr{
+  font-size:0.75rem;color:var(--text-muted);margin-top:8px;
+  padding:6px 10px;background:#fff;border-radius:8px;
+  border:1px solid var(--border);display:none;
+}
+.frete-opcoes{display:none;flex-direction:column;gap:8px;margin-top:10px}
+.frete-opcao{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;background:#fff;border:2px solid var(--border);
+  border-radius:12px;cursor:pointer;transition:all .2s;
+}
+.frete-opcao:hover{border-color:var(--vinho-light)}
+.frete-opcao.sel{border-color:var(--vinho);background:rgba(107,20,40,0.03)}
+.frete-opcao input[type=radio]{accent-color:var(--vinho);width:16px;height:16px;cursor:pointer;flex-shrink:0}
+.frete-opcao-info{flex:1;min-width:0}
+.frete-opcao-nome{font-size:0.85rem;font-weight:600;color:var(--text)}
+.frete-opcao-prazo{font-size:0.72rem;color:var(--text-light);margin-top:1px}
+.frete-opcao-preco{font-family:'Playfair Display',serif;font-size:1.05rem;color:var(--vinho);font-weight:500;white-space:nowrap}
+.frete-gratis{color:#2d7a4a;font-size:0.78rem;font-weight:600}
+.frete-erro{font-size:0.78rem;color:#c0392b;margin-top:8px;display:none;padding:6px 10px;background:#fdecea;border-radius:8px}
+.frete-loading{font-size:0.78rem;color:var(--text-light);margin-top:8px;display:none;align-items:center;gap:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.frete-spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--vinho);border-radius:50%;animation:spin .7s linear infinite}
+/* Linha de frete no total */
+.frete-total-row{display:flex;justify-content:space-between;align-items:center;font-size:0.82rem;color:var(--text-muted);margin-bottom:4px}
+
 /* BOTOES DE ACESSIBILIDADE NA NAV */
 .acc-nav-group{
   display:flex;align-items:center;gap:2px;
@@ -788,7 +839,20 @@ function gerarLinkWhatsapp(dadosPedido) {
     msg += n;
     msg += `• Total de itens: ${dadosPedido.totalPecas} pecas` + n;
     msg += `• Cliente: ${dadosPedido.clienteNome}` + n;
-    msg += `• Contato: ${dadosPedido.clienteContato}`;
+    msg += `• Contato: ${dadosPedido.clienteContato}` + n;
+
+    // Frete (se informado)
+    if (dadosPedido.frete) {
+        const f = dadosPedido.frete;
+        msg += n;
+        msg += SEP + n;
+        msg += `*ENTREGA:*` + n + n;
+        msg += `• Modalidade: ${f.nome}` + n;
+        msg += `• Prazo estimado: ${f.prazo}` + n;
+        msg += `• Custo do frete: ${f.preco === 0 ? 'Gratis' : 'R$ ' + f.preco.toFixed(2).replace('.',',')}` + n;
+        if (f.cep) msg += `• CEP de destino: ${f.cep}` + n;
+        if (f.cidade) msg += `• Destino: ${f.cidade}` + n;
+    }
 
     return `https://api.whatsapp.com/send?phone=${WA_NUMBER}&text=${encodeURIComponent(msg)}`;
 }
@@ -798,6 +862,160 @@ function gerarLinkWhatsapp(dadosPedido) {
 // ============================================================
 const ADMIN_EMAIL = 'admin';
 const ADMIN_SENHA = 'admin123';
+
+// ============================================================
+// SISTEMA DE CALCULO DE FRETE
+// ============================================================
+let freteSelecionado  = null;
+let freteUltimoCep    = '';
+let freteCotacoes     = [];
+let freteUltimoEndereco = '';
+
+// Origem: Mauriti - CE (63210-000)
+// Tabela de zonas dos Correios por estado
+const ZONAS_CORREIOS = {
+  // Zona 1 — Ceara e vizinhos imediatos
+  CE: 1, RN: 1, PB: 1, PE: 1,
+  // Zona 2 — Nordeste
+  PI: 2, MA: 2, AL: 2, SE: 2, BA: 2,
+  // Zona 3 — Norte e Centro-Oeste
+  PA: 3, AM: 3, RR: 3, AP: 3, AC: 3, RO: 3, TO: 3, MT: 3, MS: 3, GO: 3, DF: 3,
+  // Zona 4 — Sudeste e Sul proximo
+  MG: 4, ES: 4, RJ: 4, SP: 4, PR: 4,
+  // Zona 5 — Sul distante
+  SC: 5, RS: 5
+};
+
+// Tabela de precos PAC e SEDEX por zona (peso ~400g, embalagem media)
+const TABELA_FRETE = {
+  pac:   [ null,
+    { preco: 17.90, prazo: '4 a 6 dias uteis'  },  // Zona 1
+    { preco: 22.90, prazo: '6 a 9 dias uteis'  },  // Zona 2
+    { preco: 28.90, prazo: '8 a 12 dias uteis' },  // Zona 3
+    { preco: 34.90, prazo: '10 a 14 dias uteis'},  // Zona 4
+    { preco: 39.90, prazo: '12 a 18 dias uteis'},  // Zona 5
+  ],
+  sedex: [ null,
+    { preco: 28.90, prazo: '1 a 2 dias uteis'  },  // Zona 1
+    { preco: 38.90, prazo: '2 a 3 dias uteis'  },  // Zona 2
+    { preco: 52.90, prazo: '3 a 5 dias uteis'  },  // Zona 3
+    { preco: 68.90, prazo: '4 a 6 dias uteis'  },  // Zona 4
+    { preco: 82.90, prazo: '5 a 8 dias uteis'  },  // Zona 5
+  ]
+};
+
+// Frete gratis acima de R$ 499
+const FRETE_GRATIS_ACIMA = 499;
+
+function mascaraCep(input) {
+  let v = input.value.replace(/\D/g, '').slice(0, 8);
+  if (v.length > 5) v = v.slice(0,5) + '-' + v.slice(5);
+  input.value = v;
+}
+
+function calcularFrete() {
+  const input = document.getElementById('frete-cep');
+  const btn   = document.getElementById('frete-btn');
+  const load  = document.getElementById('frete-loading');
+  const err   = document.getElementById('frete-erro');
+  const addr  = document.getElementById('frete-addr');
+  const opts  = document.getElementById('frete-opcoes');
+  if (!input) return;
+
+  const cep = input.value.replace(/\D/g, '');
+  if (cep.length !== 8) {
+    err.textContent = 'CEP invalido. Digite os 8 digitos.';
+    err.style.display = 'block';
+    return;
+  }
+
+  // Reset UI
+  err.style.display = 'none';
+  addr.style.display = 'none';
+  opts.style.display = 'none';
+  opts.innerHTML = '';
+  load.style.display = 'flex';
+  btn.disabled = true;
+
+  fetch(`https://viacep.com.br/ws/${cep}/json/`)
+    .then(r => r.json())
+    .then(data => {
+      load.style.display = 'none';
+      btn.disabled = false;
+
+      if (data.erro) {
+        err.textContent = 'CEP nao encontrado. Verifique e tente novamente.';
+        err.style.display = 'block';
+        return;
+      }
+
+      const estado = data.uf;
+      const zona   = ZONAS_CORREIOS[estado];
+      if (!zona) {
+        err.textContent = 'Estado nao atendido pelo calculo automatico. Entre em contato.';
+        err.style.display = 'block';
+        return;
+      }
+
+      // Subtotal para verificar frete gratis
+      const subtotal = carrinho.reduce((a, i) => a + (parsePrice(i.preco) * i.quantidade), 0);
+      const gratis   = subtotal >= FRETE_GRATIS_ACIMA;
+
+      const endStr = `${data.logradouro ? data.logradouro + ', ' : ''}${data.bairro ? data.bairro + ' — ' : ''}${data.localidade}/${data.uf}`;
+      addr.textContent = '📍 ' + endStr;
+      addr.style.display = 'block';
+
+      // Monta cotacoes
+      const pac   = TABELA_FRETE.pac[zona];
+      const sedex = TABELA_FRETE.sedex[zona];
+
+      freteCotacoes = [
+        { id: 'pac',   nome: 'PAC',   ...pac,   preco: gratis ? 0 : pac.preco,
+          cep: input.value, cidade: data.localidade + '/' + data.uf },
+        { id: 'sedex', nome: 'SEDEX', ...sedex, preco: gratis ? 0 : sedex.preco,
+          cep: input.value, cidade: data.localidade + '/' + data.uf },
+      ];
+
+      freteUltimoCep     = input.value;
+      freteUltimoEndereco = endStr;
+
+      // Seleciona PAC por padrao
+      if (!freteSelecionado) selecionarFrete('pac', false);
+
+      opts.innerHTML = renderFreteOpcoes(freteCotacoes, freteSelecionado ? freteSelecionado.id : 'pac');
+      opts.style.display = 'flex';
+
+      if (gratis) showToast('🎉 Frete gratis para compras acima de R$ 499!', 'success');
+    })
+    .catch(() => {
+      load.style.display = 'none';
+      btn.disabled = false;
+      err.textContent = 'Erro ao consultar o CEP. Verifique sua conexao e tente novamente.';
+      err.style.display = 'block';
+    });
+}
+
+function renderFreteOpcoes(cotacoes, selId) {
+  return cotacoes.map(op => `
+    <label class="frete-opcao ${op.id === selId ? 'sel' : ''}" onclick="selecionarFrete('${op.id}', true)">
+      <input type="radio" name="frete-radio" value="${op.id}" ${op.id === selId ? 'checked' : ''}>
+      <div class="frete-opcao-info">
+        <div class="frete-opcao-nome">${op.nome}</div>
+        <div class="frete-opcao-prazo">${op.prazo}</div>
+      </div>
+      <div class="frete-opcao-preco">
+        ${op.preco === 0 ? '<span class="frete-gratis">Gratis</span>' : 'R$ ' + op.preco.toFixed(2).replace('.',',')}
+      </div>
+    </label>
+  `).join('');
+}
+
+function selecionarFrete(id, rerender) {
+  const op = freteCotacoes.find(c => c.id === id);
+  if (!op) return;
+  freteSelecionado = op;
+  if (rerender) renderCart();
+}
 
 const WA_NUMBER = '5588999138091';
 
@@ -909,6 +1127,7 @@ function closeCartDirect() {
 function renderCart() {
   const modal = document.getElementById('cartModal-inner');
   if (carrinho.length === 0) {
+    freteSelecionado = null;
     modal.innerHTML = `
       <div class="modal-header">
         <span class="modal-cat">Seu Carrinho</span>
@@ -925,6 +1144,8 @@ function renderCart() {
 
   const totalPecas = carrinho.reduce((a, item) => a + item.quantidade, 0);
   const totalValor = carrinho.reduce((a, item) => a + (parsePrice(item.preco) * item.quantidade), 0);
+  const freteValor = freteSelecionado ? freteSelecionado.preco : 0;
+  const totalComFrete = totalValor + freteValor;
 
   modal.innerHTML = `
     <div class="modal-header">
@@ -956,35 +1177,82 @@ function renderCart() {
       `).join('')}
     </div>
     <div class="cart-footer">
-      <div class="cart-total" style="flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 1.2rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-          <span class="cart-total-lbl">Total de peças</span>
-          <span class="cart-total-count" style="font-size: 14px; font-weight: 500; font-family:'DM Sans',sans-serif">${totalPecas} ${totalPecas === 1 ? 'peça' : 'peças'}</span>
+
+      <!-- CALCULAR FRETE -->
+      <div class="frete-box">
+        <div class="frete-box-title">📦 Calcular Frete</div>
+        <div class="frete-cep-row">
+          <input
+            class="frete-cep-input"
+            id="frete-cep"
+            type="tel"
+            placeholder="Digite seu CEP"
+            maxlength="9"
+            oninput="mascaraCep(this)"
+            onkeydown="if(event.key==='Enter') calcularFrete()"
+            value="${freteUltimoCep}"
+            aria-label="CEP para cálculo de frete"
+          >
+          <button class="frete-calc-btn" id="frete-btn" onclick="calcularFrete()">Calcular</button>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <span class="cart-total-lbl" style="font-size: 11px; font-weight: bold; color: var(--vinho);">Subtotal</span>
-          <span class="cart-total-count" style="font-size: 24px; font-weight: bold; color: var(--vinho);">${formatPrice(totalValor)}</span>
+        <div class="frete-loading" id="frete-loading"><div class="frete-spinner"></div> Consultando...</div>
+        <div class="frete-erro" id="frete-erro"></div>
+        <div class="frete-addr" id="frete-addr"></div>
+        <div class="frete-opcoes" id="frete-opcoes">
+          ${freteSelecionado ? renderFreteOpcoes(freteCotacoes, freteSelecionado.id) : ''}
         </div>
-        
-        <!-- CONDIÇÕES DE PAGAMENTO PREMIUM -->
-        <div style="background: var(--creme); border: 1px solid var(--border-strong); border-radius: 12px; padding: 12px; font-size: 11px; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px; line-height: 1.4; text-align: left;">
-          <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 500;">
-            <span>📱 Pix / Espécie <strong style="color: #2d7a4a;">(20% OFF)</strong></span>
-            <span style="color: #2d7a4a; font-weight: bold; font-size: 12px;">${formatPrice(totalValor * 0.8)}</span>
+      </div>
+
+      <!-- RESUMO DE VALORES -->
+      <div class="cart-total" style="flex-direction:column;align-items:stretch;gap:8px;margin-bottom:1.2rem;border-top:1px solid var(--border);padding-top:1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+          <span class="cart-total-lbl">Subtotal (${totalPecas} ${totalPecas===1?'peça':'peças'})</span>
+          <span style="font-size:0.95rem;font-weight:500">${formatPrice(totalValor)}</span>
+        </div>
+        ${freteSelecionado ? `
+        <div class="frete-total-row">
+          <span>🚚 ${freteSelecionado.nome} (${freteSelecionado.prazo})</span>
+          <span style="color:var(--text)">${freteSelecionado.preco === 0 ? '<span class="frete-gratis">Grátis</span>' : formatPrice(freteSelecionado.preco)}</span>
+        </div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-top:${freteSelecionado?'8px':'0'};border-top:${freteSelecionado?'1px dashed var(--border)':'none'};">
+          <span class="cart-total-lbl" style="font-size:0.78rem;font-weight:bold;color:var(--vinho);">Total</span>
+          <span class="cart-total-count" style="font-size:1.5rem;font-weight:bold;color:var(--vinho);">${formatPrice(totalComFrete)}</span>
+        </div>
+
+        <!-- CONDIÇÕES DE PAGAMENTO -->
+        <div style="background:var(--creme);border:1px solid var(--border-strong);border-radius:12px;padding:12px;font-size:0.78rem;color:var(--text-muted);display:flex;flex-direction:column;gap:6px;line-height:1.4;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-weight:500;">
+            <span>📱 Pix / Espécie <strong style="color:#2d7a4a;">(20% OFF)</strong></span>
+            <span style="color:#2d7a4a;font-weight:bold;">${formatPrice(totalComFrete * 0.8)}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span>💳 Cartão até 4x <strong style="color: var(--vinho-light);">(10% OFF)</strong></span>
-            <span style="font-weight: 500; color: var(--text);">${formatPrice(totalValor * 0.9)} <span style="font-size: 9px; color: var(--text-light); font-weight: normal;">(4x de ${formatPrice((totalValor * 0.9) / 4)})</span></span>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span>💳 Cartão até 4x <strong style="color:var(--vinho-light);">(10% OFF)</strong></span>
+            <span>${formatPrice(totalComFrete * 0.9)} <span style="font-size:0.68rem;color:var(--text-light);">(4x de ${formatPrice((totalComFrete * 0.9)/4)})</span></span>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--border); padding-top: 4px; margin-top: 2px;">
-            <span>💳 Cartão até 12x <strong style="color: var(--gold);">(Sem Juros)</strong></span>
-            <span style="font-weight: 500; color: var(--text);">${formatPrice(totalValor)} <span style="font-size: 9px; color: var(--text-light); font-weight: normal;">(12x de ${formatPrice(totalValor / 12)})</span></span>
+          <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--border);padding-top:4px;margin-top:2px;">
+            <span>💳 Cartão até 12x <strong style="color:var(--gold);">(Sem Juros)</strong></span>
+            <span>${formatPrice(totalComFrete)} <span style="font-size:0.68rem;color:var(--text-light);">(12x de ${formatPrice(totalComFrete/12)})</span></span>
           </div>
         </div>
       </div>
-      <button class="btn-finalizar" onclick="finalizarPedido()">\u{1F4AC} Finalizar pedido via WhatsApp</button>
+
+      <button class="btn-finalizar" onclick="finalizarPedido()">💬 Finalizar pedido via WhatsApp</button>
       <button class="btn-limpar" onclick="limparCarrinho()">Limpar carrinho</button>
     </div>`;
+
+  // Restaura estado do frete se já calculou
+  if (freteUltimoCep && freteCotacoes.length > 0) {
+    const addrEl = document.getElementById('frete-addr');
+    const opcoesEl = document.getElementById('frete-opcoes');
+    if (addrEl && freteUltimoEndereco) {
+      addrEl.textContent = freteUltimoEndereco;
+      addrEl.style.display = 'block';
+    }
+    if (opcoesEl) {
+      opcoesEl.innerHTML = renderFreteOpcoes(freteCotacoes, freteSelecionado ? freteSelecionado.id : null);
+      opcoesEl.style.display = 'flex';
+    }
+  }
 }
 
 function finalizarPedido() {
@@ -1001,6 +1269,7 @@ function finalizarPedido() {
     clienteNome: clienteLogado ? clienteLogado.nome : 'Cliente Visitante',
     clienteContato: clienteLogado ? clienteLogado.tel : '(88) 99999-1234',
     totalPecas: totalPecas,
+    frete: freteSelecionado || null,
     produtos: carrinho.map(item => ({
       nome: item.nome,
       tamanho: item.tamanho,
@@ -1024,12 +1293,12 @@ function finalizarPedido() {
   };
 
   pedidos.push(novoPedido);
-  // Salva no Supabase (não bloqueia o redirecionamento)
   DB.salvarPedido(novoPedido).catch(e => console.warn('Pedido salvo localmente:', e));
 
   window.open(linkFinal, '_blank');
 
   limparCarrinho();
+  freteSelecionado = null; freteUltimoCep = ''; freteCotacoes = []; freteUltimoEndereco = '';
   closeCartDirect();
   showToast('✓ Pedido enviado e registrado! Redirecionando para o WhatsApp...', 'success');
 }

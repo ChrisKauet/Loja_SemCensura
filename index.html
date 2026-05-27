@@ -993,6 +993,24 @@ function calcularFrete() {
       const subtotal = carrinho.reduce((a, i) => a + (parsePrice(i.preco) * i.quantidade), 0);
       const gratis   = subtotal >= FRETE_GRATIS_ACIMA;
 
+      // ── MAURITI (cidade da loja) — FRETE SEMPRE GRATIS ──
+      if (estado === 'CE' && normalizarCidade(cidade) === 'mauriti') {
+        freteCotacoes = [{
+          id: 'local', nome: 'Entrega Local — Mauriti',
+          prazo: 'Mesmo dia ou dia seguinte',
+          preco: 0, cep: input.value, cidade: cidade + '/' + estado,
+          local: true
+        }];
+        freteUltimoCep      = input.value;
+        freteUltimoEndereco = endStr;
+        freteSelecionado    = null;
+        selecionarFrete('local', false);
+        opts.innerHTML = renderFreteOpcoes(freteCotacoes, 'local');
+        opts.style.display = 'flex';
+        showToast('🏠 Frete grátis! Você está em Mauriti — cidade da loja.', 'success');
+        return;
+      }
+
       // ── REGIAO CRAJUBAR ─────────────────────────────────
       if (estado === 'CE' && ehCrajubar(cidade)) {
         const { ehDia, proxStr } = infoDiaCrajubar();

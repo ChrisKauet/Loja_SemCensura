@@ -871,7 +871,7 @@ let freteUltimoCep    = '';
 let freteCotacoes     = [];
 let freteUltimoEndereco = '';
 
-// Origem: Mauriti - CE (63210-000)
+// Origem: Loja Sem Censura — Rua Major Jose Francisco, 303 — Centro, Mauriti/CE — CEP 63210-000
 // Tabela de zonas dos Correios por estado
 const ZONAS_CORREIOS = {
   // Zona 1 — Ceara e vizinhos imediatos
@@ -905,7 +905,7 @@ const TABELA_FRETE = {
 };
 
 // Frete gratis acima de R$ 499
-const FRETE_GRATIS_ACIMA = 499;
+const FRETE_GRATIS_ACIMA = 250; // Frete gratis em pedidos acima de R$ 250,00
 
 function mascaraCep(input) {
   let v = input.value.replace(/\D/g, '').slice(0, 8);
@@ -985,7 +985,7 @@ function calcularFrete() {
       opts.innerHTML = renderFreteOpcoes(freteCotacoes, freteSelecionado ? freteSelecionado.id : 'pac');
       opts.style.display = 'flex';
 
-      if (gratis) showToast('🎉 Frete gratis para compras acima de R$ 499!', 'success');
+      if (gratis) showToast('🎉 Frete gratis para compras acima de R$ 250!', 'success');
     })
     .catch(() => {
       load.style.display = 'none';

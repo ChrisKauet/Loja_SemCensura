@@ -1285,23 +1285,52 @@ function renderCart() {
     </div>
     <div class="cart-footer">
 
-      <!-- CALCULAR FRETE -->
-      <div class="frete-box">
-        <div class="frete-box-title">📦 Calcular Frete</div>
-        <div class="frete-cep-row">
-          <input
-            class="frete-cep-input"
-            id="frete-cep"
-            type="tel"
-            placeholder="Digite seu CEP"
-            maxlength="9"
-            oninput="mascaraCep(this)"
-            onkeydown="if(event.key==='Enter') calcularFrete()"
-            value="${freteUltimoCep}"
-            aria-label="CEP para cálculo de frete"
-          >
-          <button class="frete-calc-btn" id="frete-btn" onclick="calcularFrete()">Calcular</button>
+      <!-- ENDERECO / FRETE -->
+      <div class="frete-box" id="frete-box-container">
+        <div class="frete-box-title">📦 Entrega
+          ${clienteLogado && clienteLogado.endereco
+            ? `<span style="margin-left:auto;font-size:0.65rem;color:var(--gold);font-weight:600;letter-spacing:0;text-transform:none">✔ endereço salvo</span>`
+            : ''}
         </div>
+
+        ${clienteLogado && clienteLogado.endereco ? `
+        <!-- CHIP: endereço salvo -->
+        <div id="end-chip" style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px 12px;margin-bottom:10px;">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:0.72rem;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">Endereço salvo</div>
+            <div style="font-size:0.82rem;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${clienteLogado.endereco.logradouro}${clienteLogado.endereco.numero ? ', '+clienteLogado.endereco.numero : ''} — ${clienteLogado.endereco.cidade}/${clienteLogado.endereco.estado}
+            </div>
+            <div style="font-size:0.7rem;color:var(--text-light)">CEP ${clienteLogado.endereco.cep}</div>
+          </div>
+          <button onclick="usarEnderecoSalvo()" style="background:var(--vinho);color:#fff;border:none;border-radius:20px;padding:6px 12px;font-size:0.7rem;letter-spacing:1px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;min-height:36px">Usar este</button>
+        </div>
+        <div style="text-align:center;margin-bottom:8px">
+          <button onclick="toggleFormEnderecoCart()" id="btn-outro-end" style="background:none;border:none;color:var(--text-light);font-size:0.72rem;cursor:pointer;text-decoration:underline">Usar outro endereço ▾</button>
+        </div>
+        <div id="form-outro-end" style="display:none">
+        ` : `
+        <div id="form-outro-end">
+        `}
+
+          <!-- FORM CEP -->
+          <div class="frete-cep-row">
+            <input
+              class="frete-cep-input"
+              id="frete-cep"
+              type="tel"
+              placeholder="Digite seu CEP"
+              maxlength="9"
+              oninput="mascaraCep(this)"
+              onkeydown="if(event.key==='Enter') calcularFrete()"
+              value="${freteUltimoCep}"
+              aria-label="CEP para cálculo de frete"
+            >
+            <button class="frete-calc-btn" id="frete-btn" onclick="calcularFrete()">Calcular</button>
+          </div>
+          ${clienteLogado ? `<div style="text-align:right;margin-top:4px"><button onclick="salvarEnderecoDoCart()" style="background:none;border:none;color:var(--vinho-light);font-size:0.7rem;cursor:pointer;text-decoration:underline">💾 Salvar este CEP no meu cadastro</button></div>` : ''}
+        </div>
+
         <div class="frete-loading" id="frete-loading"><div class="frete-spinner"></div> Consultando...</div>
         <div class="frete-erro" id="frete-erro"></div>
         <div class="frete-addr" id="frete-addr"></div>
@@ -1347,8 +1376,10 @@ function renderCart() {
       <button class="btn-limpar" onclick="limparCarrinho()">Limpar carrinho</button>
     </div>`;
 
-  // Restaura estado do frete se já calculou
-  if (freteUltimoCep && freteCotacoes.length > 0) {
+  // Auto-calcula frete se cliente tem endereço salvo e frete ainda não foi calculado
+  if (clienteLogado && clienteLogado.endereco && !freteUltimoCep) {
+    setTimeout(() => usarEnderecoSalvo(), 80);
+  } else if (freteUltimoCep && freteCotacoes.length > 0) {
     const addrEl = document.getElementById('frete-addr');
     const opcoesEl = document.getElementById('frete-opcoes');
     if (addrEl && freteUltimoEndereco) {
@@ -2096,44 +2127,172 @@ function fazerLoginAdmin() {
 async function showPerfilCliente() {
   document.getElementById('loginModal').classList.add('open');
   const body = document.getElementById('login-body');
-  body.innerHTML = `<div style="text-align:center;padding:2rem"><p style="color:var(--text-light);font-size:13px">Carregando pedidos...</p></div>`;
+  body.innerHTML = `<div style="text-align:center;padding:2rem"><p style="color:var(--text-light);font-size:13px">Carregando...</p></div>`;
 
   let meusPedidos = await DB.getPedidosPorCliente(clienteLogado.nome).catch(() => []);
-  
-  let pedidosHTML = '';
-  if (meusPedidos.length === 0) {
-    pedidosHTML = `<p style="font-size:11px;color:var(--text-light);font-style:italic;margin-bottom:12px;text-align:center;">Nenhum pedido realizado ainda.</p>`;
-  } else {
-    pedidosHTML = `
-      <div style="max-height:160px;overflow-y:auto;text-align:left;background:var(--creme);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:12px">
+
+  const pedidosHTML = meusPedidos.length === 0
+    ? `<p style="font-size:11px;color:var(--text-light);font-style:italic;margin-bottom:12px;text-align:center">Nenhum pedido realizado ainda.</p>`
+    : `<div style="max-height:140px;overflow-y:auto;text-align:left;background:var(--creme);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:12px">
         <div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text-light);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:3px">Meus Pedidos Recentes</div>
         ${meusPedidos.map(p => `
           <div style="font-size:11px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px dashed var(--border);display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <span style="font-weight:500">Ped. #${p.id.toString().slice(-6)}</span> (${p.data})<br>
-              <span style="font-size:10px;color:var(--text-light)">${p.totalItens || p.total_itens} peça(s)</span>
-            </div>
-            <span class="res-status ${p.status === 'finalizado' ? 's-conf' : 's-pend'}" style="font-size:8px;padding:1px 6px">${p.status === 'finalizado' ? 'Confirmado' : 'Pendente'}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
+            <div><span style="font-weight:500">Ped. #${p.id.toString().slice(-6)}</span> (${p.data})<br>
+            <span style="font-size:10px;color:var(--text-light)">${p.totalItens || p.total_itens} peça(s)</span></div>
+            <span class="res-status ${p.status==='finalizado'?'s-conf':'s-pend'}" style="font-size:8px;padding:1px 6px">${p.status==='finalizado'?'Confirmado':'Pendente'}</span>
+          </div>`).join('')}
+      </div>`;
+
+  // --- Bloco de endereço ---
+  const end = clienteLogado.endereco;
+  const endHTML = end
+    ? `<div style="background:var(--creme);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;text-align:left">
+        <div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text-light);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+          <span>📦 Endereço de Entrega</span>
+          <button onclick="abrirEdicaoEnderecoPerfil()" style="background:none;border:none;color:var(--vinho-light);font-size:0.7rem;cursor:pointer;text-decoration:underline">Editar</button>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text);font-weight:500">${end.logradouro}${end.numero?', '+end.numero:''} ${end.complemento?'- '+end.complemento:''}</div>
+        <div style="font-size:0.75rem;color:var(--text-muted)">${end.bairro ? end.bairro+' — ' : ''}${end.cidade}/${end.estado}</div>
+        <div style="font-size:0.72rem;color:var(--text-light)">CEP ${end.cep}</div>
+      </div>`
+    : `<div style="margin-bottom:12px">
+        <button onclick="abrirEdicaoEnderecoPerfil()" style="width:100%;background:none;border:1px dashed var(--border-strong);border-radius:12px;padding:12px;color:var(--text-muted);font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;text-align:center">
+          + Adicionar endereço de entrega
+        </button>
+      </div>`;
 
   body.innerHTML = `
-    <div style="text-align:center;padding:0.5rem 0">
+    <div style="text-align:center;padding:.5rem 0">
       <div style="width:48px;height:48px;border-radius:50%;background:var(--vinho);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto .6rem;font-family:'Playfair Display',serif;font-style:italic">${clienteLogado.nome.charAt(0).toUpperCase()}</div>
-      <h3 style="font-family:'Playfair Display',serif;font-style:italic;margin-bottom:2px;color:var(--vinho);">${clienteLogado.nome}</h3>
+      <h3 style="font-family:'Playfair Display',serif;font-style:italic;margin-bottom:2px;color:var(--vinho)">${clienteLogado.nome}</h3>
       <p style="font-size:11px;color:var(--text-light);margin-bottom:1rem">WhatsApp: ${clienteLogado.tel}</p>
-      
       ${pedidosHTML}
-      
+      ${endHTML}
       <button class="btn-login" style="background:none;border:1px solid var(--vinho);color:var(--vinho);margin-bottom:8px" onclick="closeLoginDirect()">Voltar à loja</button>
       <button class="btn-login" style="background:var(--text-light);border-color:var(--text-light);padding:8px" onclick="logout()">Desvincular e Sair</button>
     </div>
   `;
-  const body2 = document.getElementById('login-body');
-  if (body2) body2.innerHTML = body2.innerHTML; // força re-render
+}
+
+function abrirEdicaoEnderecoPerfil() {
+  const body = document.getElementById('login-body');
+  const end = clienteLogado.endereco || {};
+  body.innerHTML = `
+    <div style="padding:.5rem 0">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:1.2rem">
+        <button onclick="showPerfilCliente()" style="background:none;border:none;color:var(--text-light);font-size:1.1rem;cursor:pointer;padding:4px">←</button>
+        <h3 style="font-family:'Playfair Display',serif;font-style:italic;font-size:1.1rem;color:var(--vinho);margin:0">${end.cep ? 'Editar Endereço' : 'Adicionar Endereço'}</h3>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;gap:8px">
+          <div class="login-fg" style="flex:1;margin:0"><label>CEP</label><input type="tel" id="ep-cep" placeholder="00000-000" maxlength="9" value="${end.cep||''}" oninput="mascaraCepEnd(this)" onblur="buscarEndPerfil()"></div>
+          <button onclick="buscarEndPerfil()" style="align-self:flex-end;background:var(--vinho);color:#fff;border:none;border-radius:30px;padding:10px 14px;font-size:0.72rem;cursor:pointer;font-family:'DM Sans',sans-serif;min-height:44px">Buscar</button>
+        </div>
+        <div class="login-fg" style="margin:0"><label>Rua / Logradouro</label><input type="text" id="ep-rua" placeholder="Ex: Rua das Flores" value="${end.logradouro||''}"></div>
+        <div style="display:flex;gap:8px">
+          <div class="login-fg" style="flex:1;margin:0"><label>Número</label><input type="text" id="ep-num" placeholder="123" value="${end.numero||''}"></div>
+          <div class="login-fg" style="flex:2;margin:0"><label>Complemento</label><input type="text" id="ep-comp" placeholder="Apto, bloco..." value="${end.complemento||''}"></div>
+        </div>
+        <div class="login-fg" style="margin:0"><label>Bairro</label><input type="text" id="ep-bairro" placeholder="Ex: Centro" value="${end.bairro||''}"></div>
+        <div style="display:flex;gap:8px">
+          <div class="login-fg" style="flex:2;margin:0"><label>Cidade</label><input type="text" id="ep-cidade" placeholder="" value="${end.cidade||''}" readonly></div>
+          <div class="login-fg" style="flex:1;margin:0"><label>UF</label><input type="text" id="ep-uf" placeholder="" maxlength="2" value="${end.estado||''}" readonly></div>
+        </div>
+        <div class="login-error" id="ep-erro" style="display:none"></div>
+      </div>
+      <button class="btn-login" style="margin-top:1rem" onclick="confirmarEnderecoPerfilSalvo()">Salvar endereço</button>
+      ${end.cep ? `<button class="btn-login" style="background:none;border:1px solid #c0392b;color:#c0392b;margin-top:6px" onclick="removerEnderecoCliente()">Remover endereço</button>` : ''}
+    </div>
+  `;
+}
+
+async function buscarEndPerfil() {
+  const cepIn = document.getElementById('ep-cep');
+  if (!cepIn) return;
+  const cep = cepIn.value.replace(/\D/g,'');
+  if (cep.length !== 8) return;
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const d = await r.json();
+    if (d.erro) return;
+    const f = (id,val) => { const el=document.getElementById(id); if(el) el.value=val||''; };
+    f('ep-rua',    d.logradouro);
+    f('ep-bairro', d.bairro);
+    f('ep-cidade', d.localidade);
+    f('ep-uf',     d.uf);
+    document.getElementById('ep-num')?.focus();
+  } catch(e) {}
+}
+
+function confirmarEnderecoPerfilSalvo() {
+  const g = id => (document.getElementById(id)||{}).value||'';
+  const cep    = g('ep-cep').replace(/\D/g,'');
+  const rua    = g('ep-rua');
+  const num    = g('ep-num');
+  const cidade = g('ep-cidade');
+  const erroEl = document.getElementById('ep-erro');
+  if (!cep || !rua || !num || !cidade) {
+    erroEl.textContent = 'Preencha CEP, rua, número e cidade.';
+    erroEl.style.display = 'block';
+    return;
+  }
+  const endereco = {
+    cep: g('ep-cep'), logradouro: rua, numero: num,
+    complemento: g('ep-comp'), bairro: g('ep-bairro'),
+    cidade, estado: g('ep-uf')
+  };
+  clienteLogado.endereco = endereco;
+  salvarEnderecoCliente(clienteLogado.id, endereco);
+  showToast('✓ Endereço salvo com sucesso!', 'success');
+  showPerfilCliente();
+}
+
+function removerEnderecoCliente() {
+  if (!clienteLogado) return;
+  clienteLogado.endereco = null;
+  salvarEnderecoCliente(clienteLogado.id, null);
+  showToast('Endereço removido.', '');
+  showPerfilCliente();
+}
+
+// Carrinho: usa o endereço salvo do cliente para preencher o campo de CEP
+function usarEnderecoSalvo() {
+  if (!clienteLogado || !clienteLogado.endereco) return;
+  const cepInput = document.getElementById('frete-cep');
+  if (cepInput) cepInput.value = clienteLogado.endereco.cep;
+  calcularFrete();
+}
+
+// Carrinho: mostra/esconde formulário de endereço alternativo
+function toggleFormEnderecoCart() {
+  const form = document.getElementById('form-outro-end');
+  const btn  = document.getElementById('btn-outro-end');
+  if (!form) return;
+  const open = form.style.display !== 'none';
+  form.style.display = open ? 'none' : 'block';
+  if (btn) btn.textContent = open ? 'Usar outro endereço ▾' : 'Fechar ▴';
+}
+
+// Carrinho: salva o CEP digitado no carrinho de volta ao perfil do cliente
+async function salvarEnderecoDoCart() {
+  const cepInput = document.getElementById('frete-cep');
+  if (!cepInput || !clienteLogado) return;
+  const cep = cepInput.value.replace(/\D/g,'');
+  if (cep.length !== 8) { showToast('Digite um CEP válido primeiro.', ''); return; }
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const d = await r.json();
+    if (d.erro) { showToast('CEP não encontrado.', ''); return; }
+    const endereco = {
+      cep: cepInput.value, logradouro: d.logradouro || '',
+      numero: '', complemento: '', bairro: d.bairro || '',
+      cidade: d.localidade, estado: d.uf
+    };
+    clienteLogado.endereco = endereco;
+    salvarEnderecoCliente(clienteLogado.id, endereco);
+    showToast('✓ Endereço salvo no seu cadastro!', 'success');
+    renderCart(); // Atualiza chip de endereço no carrinho
+  } catch(e) { showToast('Erro ao buscar CEP.', ''); }
 }
 
 function updateNavAuth() {

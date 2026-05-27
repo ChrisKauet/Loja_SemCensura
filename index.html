@@ -841,17 +841,34 @@ function gerarLinkWhatsapp(dadosPedido) {
     msg += `• Cliente: ${dadosPedido.clienteNome}` + n;
     msg += `• Contato: ${dadosPedido.clienteContato}` + n;
 
-    // Frete (se informado)
+    // Frete / Entrega (se informado)
     if (dadosPedido.frete) {
         const f = dadosPedido.frete;
         msg += n;
         msg += SEP + n;
         msg += `*ENTREGA:*` + n + n;
-        msg += `• Modalidade: ${f.nome}` + n;
-        msg += `• Prazo estimado: ${f.prazo}` + n;
-        msg += `• Custo do frete: ${f.preco === 0 ? 'Gratis' : 'R$ ' + f.preco.toFixed(2).replace('.',',')}` + n;
-        if (f.cep) msg += `• CEP de destino: ${f.cep}` + n;
-        if (f.cidade) msg += `• Destino: ${f.cidade}` + n;
+        if (f.retirada) {
+            msg += `• Modalidade: Retirada na Loja` + n;
+            msg += `• Local: Rua Major Jose Francisco, 303 - Centro, Mauriti/CE` + n;
+            msg += `• Horario: A combinar` + n;
+        } else {
+            msg += `• Modalidade: ${f.nome}` + n;
+            msg += `• Prazo estimado: ${f.prazo}` + n;
+            msg += `• Custo do frete: ${f.preco === 0 ? 'Gratis' : 'R$ ' + f.preco.toFixed(2).replace('.',',')}` + n;
+            if (f.cep) msg += `• CEP de destino: ${f.cep}` + n;
+            if (f.cidade) msg += `• Destino: ${f.cidade}` + n;
+        }
+    }
+
+    // Endereco completo (quando Correios)
+    if (dadosPedido.endereco) {
+        const e = dadosPedido.endereco;
+        msg += n;
+        msg += `*ENDERECO DE ENTREGA:*` + n + n;
+        msg += `• CEP: ${e.cep}` + n;
+        msg += `• Logradouro: ${e.logradouro}${e.numero ? ', ' + e.numero : ''}${e.complemento ? ' - ' + e.complemento : ''}` + n;
+        if (e.bairro) msg += `• Bairro: ${e.bairro}` + n;
+        msg += `• Cidade/UF: ${e.cidade}/${e.estado}` + n;
     }
 
     return `https://api.whatsapp.com/send?phone=${WA_NUMBER}&text=${encodeURIComponent(msg)}`;
@@ -993,21 +1010,27 @@ function calcularFrete() {
       const subtotal = carrinho.reduce((a, i) => a + (parsePrice(i.preco) * i.quantidade), 0);
       const gratis   = subtotal >= FRETE_GRATIS_ACIMA;
 
-      // ── MAURITI (cidade da loja) — FRETE SEMPRE GRATIS ──
+      // ── MAURITI (cidade da loja) — FRETE SEMPRE GRATIS + RETIRADA ──
       if (estado === 'CE' && normalizarCidade(cidade) === 'mauriti') {
-        freteCotacoes = [{
-          id: 'local', nome: 'Entrega Local — Mauriti',
-          prazo: 'Mesmo dia ou dia seguinte',
-          preco: 0, cep: input.value, cidade: cidade + '/' + estado,
-          local: true
-        }];
+        freteCotacoes = [
+          {
+            id: 'local', nome: 'Entrega Local — Mauriti',
+            prazo: 'Mesmo dia ou dia seguinte',
+            preco: 0, cep: input.value, cidade: cidade + '/' + estado, local: true
+          },
+          {
+            id: 'retirada', nome: 'Retirada na Loja',
+            prazo: 'Combinar horário — Rua Major José Francisco, 303',
+            preco: 0, cep: '63210-000', cidade: 'Mauriti/CE', local: true, retirada: true
+          }
+        ];
         freteUltimoCep      = input.value;
         freteUltimoEndereco = endStr;
         freteSelecionado    = null;
         selecionarFrete('local', false);
         opts.innerHTML = renderFreteOpcoes(freteCotacoes, 'local');
         opts.style.display = 'flex';
-        showToast('🏠 Frete grátis! Você está em Mauriti — cidade da loja.', 'success');
+        showToast('🏠 Frete grátis! Escolha entrega ou retirada na loja.', 'success');
         return;
       }
 
@@ -1347,31 +1370,37 @@ function finalizarPedido() {
     openLoginModal();
     return;
   }
+
+  // Valida endereço para entregas via Correios
+  const ehCorreios = freteSelecionado && !freteSelecionado.local && !freteSelecionado.retirada;
+  if (ehCorreios && !clienteLogado.endereco) {
+    // Abre modal de endereço obrigatório
+    abrirModalEnderecoObrigatorio();
+    return;
+  }
+
   const totalPecas = carrinho.reduce((a, item) => a + item.quantidade, 0);
 
   const dadosPedido = {
-    clienteNome: clienteLogado ? clienteLogado.nome : 'Cliente Visitante',
-    clienteContato: clienteLogado ? clienteLogado.tel : '(88) 99999-1234',
-    totalPecas: totalPecas,
-    frete: freteSelecionado || null,
+    clienteNome:    clienteLogado.nome,
+    clienteContato: clienteLogado.tel,
+    totalPecas,
+    frete:    freteSelecionado || null,
+    endereco: ehCorreios ? (clienteLogado.endereco || null) : null,
     produtos: carrinho.map(item => ({
-      nome: item.nome,
-      tamanho: item.tamanho,
-      cor: item.corNome,
-      qtd: item.quantidade,
-      ref: item.cod
+      nome: item.nome, tamanho: item.tamanho,
+      cor: item.corNome, qtd: item.quantidade, ref: item.cod
     }))
   };
 
   const linkFinal = gerarLinkWhatsapp(dadosPedido);
 
-  // Registrar o pedido localmente
   const novoPedido = {
     id: Date.now(),
-    clienteNome: dadosPedido.clienteNome,
-    clienteTel: dadosPedido.clienteContato,
-    itens: [...carrinho],
-    totalItens: totalPecas,
+    clienteNome:  dadosPedido.clienteNome,
+    clienteTel:   dadosPedido.clienteContato,
+    itens:        [...carrinho],
+    totalItens:   totalPecas,
     status: 'pendente',
     data: new Date().toLocaleDateString('pt-BR')
   };
@@ -1716,20 +1745,48 @@ function switchLoginTab(tab) {
   const body = document.getElementById('login-body');
   if (tab === 'cliente') {
     body.innerHTML = `
-      <h3 style="font-family:'Playfair Display',serif; font-style:italic; font-size:22px; margin-bottom:4px; text-align:center; color:var(--vinho);">Identifique-se</h3>
-      <p class="login-sub" style="text-align:center; font-size:11px; margin-bottom:1.5rem; color:var(--text-light); line-height:1.4;">Vincule seu nome e WhatsApp para finalizar compras rápidas e acompanhar seus pedidos.</p>
+      <h3 style="font-family:'Playfair Display',serif;font-style:italic;font-size:22px;margin-bottom:4px;text-align:center;color:var(--vinho);">Identifique-se</h3>
+      <p class="login-sub" style="text-align:center;font-size:11px;margin-bottom:1.5rem;color:var(--text-light);line-height:1.4;">Vincule seu nome e WhatsApp para finalizar compras rápidas e acompanhar seus pedidos.</p>
       <div class="login-fg">
         <label>WhatsApp / Telefone</label>
         <input type="tel" id="cli-tel" placeholder="Ex: (88) 99913-8091" oninput="detectarClienteExistente(this.value)">
       </div>
-      <div class="login-fg" style="margin-bottom: 1.2rem;">
+      <div class="login-fg">
         <label>Nome completo</label>
         <input type="text" id="cli-nome" placeholder="Ex: Ana Silva">
       </div>
+
+      <!-- ENDERECO -->
+      <details id="end-details" style="margin-bottom:1.2rem;">
+        <summary style="font-size:0.75rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-light);cursor:pointer;padding:8px 0;list-style:none;display:flex;align-items:center;justify-content:space-between;">
+          <span>📦 Endereço de Entrega <span id="end-badge" style="display:none;color:var(--gold);font-size:0.65rem;font-weight:600;margin-left:6px">✔ salvo</span></span>
+          <span style="font-size:0.7rem;color:var(--text-muted)">opcional ▾</span>
+        </summary>
+        <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:8px;">
+            <div class="login-fg" style="flex:1;margin:0">
+              <label>CEP</label>
+              <input type="tel" id="end-cep" placeholder="00000-000" maxlength="9" oninput="mascaraCepEnd(this)" onblur="buscarEndByCep()">
+            </div>
+            <button onclick="buscarEndByCep()" style="align-self:flex-end;background:var(--vinho);color:#fff;border:none;border-radius:30px;padding:10px 14px;font-size:0.72rem;letter-spacing:1px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;min-height:44px;">Buscar</button>
+          </div>
+          <div class="login-fg" style="margin:0"><label>Rua / Logradouro</label><input type="text" id="end-rua" placeholder="Ex: Rua das Flores"></div>
+          <div style="display:flex;gap:8px;">
+            <div class="login-fg" style="flex:1;margin:0"><label>Número</label><input type="text" id="end-num" placeholder="123"></div>
+            <div class="login-fg" style="flex:2;margin:0"><label>Complemento</label><input type="text" id="end-comp" placeholder="Apto, bloco..."></div>
+          </div>
+          <div class="login-fg" style="margin:0"><label>Bairro</label><input type="text" id="end-bairro" placeholder="Ex: Centro"></div>
+          <div style="display:flex;gap:8px;">
+            <div class="login-fg" style="flex:2;margin:0"><label>Cidade</label><input type="text" id="end-cidade" placeholder="Ex: Fortaleza" readonly></div>
+            <div class="login-fg" style="flex:1;margin:0"><label>UF</label><input type="text" id="end-uf" placeholder="CE" maxlength="2" readonly></div>
+          </div>
+        </div>
+      </details>
+
       <div class="login-error" id="cli-erro"></div>
       <button class="btn-login" onclick="vincularCliente()">Vincular e Acessar</button>
-      <div style="text-align:center; margin-top:1.2rem;">
-        <span onclick="switchLoginTab('admin')" style="font-size:10px; color:var(--text-light); cursor:pointer; text-decoration:underline; opacity: 0.65;">Acesso Administrativo</span>
+      <div style="text-align:center;margin-top:1.2rem;">
+        <span onclick="switchLoginTab('admin')" style="font-size:10px;color:var(--text-light);cursor:pointer;text-decoration:underline;opacity:.65;">Acesso Administrativo</span>
       </div>
     `;
   } else if (tab === 'admin') {
@@ -1779,17 +1836,70 @@ function isCommonBrazilianName(name) {
   return false;
 }
 
+// Helpers de endereço no formulário de cadastro
+function mascaraCepEnd(input) {
+  let v = input.value.replace(/\D/g,'').slice(0,8);
+  if (v.length > 5) v = v.slice(0,5)+'-'+v.slice(5);
+  input.value = v;
+}
+
+async function buscarEndByCep() {
+  const cepIn = document.getElementById('end-cep');
+  if (!cepIn) return;
+  const cep = cepIn.value.replace(/\D/g,'');
+  if (cep.length !== 8) return;
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const d = await r.json();
+    if (d.erro) return;
+    const f = (id, val) => { const el=document.getElementById(id); if(el) el.value=val||''; };
+    f('end-rua',    d.logradouro);
+    f('end-bairro', d.bairro);
+    f('end-cidade', d.localidade);
+    f('end-uf',     d.uf);
+    document.getElementById('end-num')?.focus();
+  } catch(e) {}
+}
+
+function coletarEndereco() {
+  const g = id => (document.getElementById(id)||{}).value||'';
+  const cep = g('end-cep').replace(/\D/g,'');
+  if (!cep) return null;
+  return {
+    cep: g('end-cep'), logradouro: g('end-rua'), numero: g('end-num'),
+    complemento: g('end-comp'), bairro: g('end-bairro'),
+    cidade: g('end-cidade'), estado: g('end-uf')
+  };
+}
+
+function preencherFormEndereco(end) {
+  if (!end) return;
+  const f = (id,val)=>{ const el=document.getElementById(id); if(el) el.value=val||''; };
+  f('end-cep',    end.cep);
+  f('end-rua',    end.logradouro);
+  f('end-num',    end.numero);
+  f('end-comp',   end.complemento);
+  f('end-bairro', end.bairro);
+  f('end-cidade', end.cidade);
+  f('end-uf',     end.estado);
+  // Mostra badge e abre o details
+  const badge = document.getElementById('end-badge');
+  if (badge) badge.style.display='inline';
+  const det = document.getElementById('end-details');
+  if (det) det.open = true;
+}
+
 async function vincularCliente() {
   const nome = document.getElementById('cli-nome').value.trim();
-  const tel = document.getElementById('cli-tel').value.trim();
+  const tel  = document.getElementById('cli-tel').value.trim();
   const erro = document.getElementById('cli-erro');
-  
+  const endereco = coletarEndereco();
+
   if (!nome || !tel) {
     erro.style.display = 'block';
     erro.textContent = 'Preencha seu Nome e WhatsApp.';
     return;
   }
-  
   const cleanTel = tel.replace(/\D/g, '');
   if (cleanTel.length < 8) {
     erro.style.display = 'block';
@@ -1799,34 +1909,39 @@ async function vincularCliente() {
 
   // Busca no Supabase
   let cliPorTel = await DB.buscarClientePorTel(cleanTel);
-  
   if (cliPorTel) {
     cliPorTel.nome = nome;
+    if (endereco) cliPorTel.endereco = endereco;
     await DB.atualizarClienteTel(cliPorTel.id, tel).catch(() => {});
-    // Atualiza lista local
     const idx = clientes.findIndex(c => c.id === cliPorTel.id);
-    if (idx > -1) clientes[idx] = { ...clientes[idx], nome };
-    clienteLogado = { id: cliPorTel.id, nome, tel };
+    if (idx > -1) clientes[idx] = { ...clientes[idx], nome, endereco: endereco || clientes[idx].endereco };
+    clienteLogado = cliPorTel;
+    if (endereco) salvarEnderecoCliente(cliPorTel.id, endereco);
     closeLoginDirect();
     updateNavAuth();
     showToast(`✓ Vinculado como ${nome}!`, 'success');
     return;
   }
-  
+
   let cliPorNome = clientes.find(c => c.nome.toLowerCase().trim() === nome.toLowerCase().trim());
-  
   if (cliPorNome) {
-    const dddNovo = cleanTel.substring(0, 2);
+    const dddNovo   = cleanTel.substring(0, 2);
     const dddAntigo = (cliPorNome.tel || '').replace(/\D/g, '').substring(0, 2);
-    const mesmoDDD = dddNovo === dddAntigo;
+    const mesmoDDD  = dddNovo === dddAntigo;
     const nomeComum = isCommonBrazilianName(nome);
     if (!nomeComum || !mesmoDDD) {
-      abrirConfirmacaoNovoNumero(nome, tel, cliPorNome);
+      abrirConfirmacaoNovoNumero(nome, tel, cliPorNome, endereco);
       return;
     }
   }
-  
-  await cadastrarNovoCliente(nome, tel);
+
+  await cadastrarNovoCliente(nome, tel, endereco);
+}
+
+function salvarEnderecoCliente(id, endereco) {
+  // Salva no array local (persistencia em localStorage via clientes)
+  const cli = clientes.find(c => c.id === id);
+  if (cli) { cli.endereco = endereco; localStorage.setItem('sc_clientes', JSON.stringify(clientes)); }
 }
 
 function abrirConfirmacaoNovoNumero(nome, tel, cliAntigo) {
@@ -1870,16 +1985,16 @@ function criarNovoCadastroSeparado(nome, tel) {
   fecharOverlayConfirmacao();
 }
 
-async function cadastrarNovoCliente(nome, tel) {
+async function cadastrarNovoCliente(nome, tel, endereco) {
   const cli = await DB.salvarCliente(nome, tel);
   const cliLocal = {
-    id: cli.id,
-    nome: cli.nome,
-    tel: cli.tel,
+    id: cli.id, nome: cli.nome, tel: cli.tel,
+    endereco: endereco || null,
     data: new Date().toLocaleDateString('pt-BR')
   };
   clientes.push(cliLocal);
   clienteLogado = cliLocal;
+  if (endereco) salvarEnderecoCliente(cli.id, endereco);
   closeLoginDirect();
   updateNavAuth();
   showToast(`✓ Cadastrado com sucesso como ${nome}!`, 'success');
@@ -1922,12 +2037,15 @@ function confirmarLoginAutomatico() {
   if (confirmandoCliente) {
     clienteLogado = confirmandoCliente;
     isAdmin = false;
-    
-    const telInput = document.getElementById('cli-tel');
+
+    const telInput  = document.getElementById('cli-tel');
     const nomeInput = document.getElementById('cli-nome');
-    if (telInput) telInput.value = confirmandoCliente.tel;
+    if (telInput)  telInput.value  = confirmandoCliente.tel;
     if (nomeInput) nomeInput.value = confirmandoCliente.nome;
-    
+
+    // Preenche endereço salvo
+    if (confirmandoCliente.endereco) preencherFormEndereco(confirmandoCliente.endereco);
+
     fecharOverlayConfirmacao();
     closeLoginDirect();
     updateNavAuth();
